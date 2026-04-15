@@ -17,6 +17,9 @@
  */
 
 #include <stdint.h>
+#define RCC_AHB2ENR ((volatile uint32_t*) 0x44020C4C)
+#define GPIOF_MODER ((volatile uint32_t*) 0x42021400)
+#define GPIOF_ODR ((volatile uint32_t*) 0x42021414)
 
 #if !defined(__SOFT_FP__) && defined(__ARM_FP)
   #warning "FPU is not initialized, but the project is compiling for an FPU. Please initialize the FPU before use."
@@ -24,8 +27,16 @@
 
 int main(void)
 {
+	*RCC_AHB2ENR |= (1 << 5);
+	*GPIOF_MODER &= ~(3 << 8);
+	*GPIOF_MODER |= (1 << 8);
     /* Loop forever */
-	for(;;);
+	while(1){
+		*GPIOF_ODR |= (1 << 4);
+		for (volatile int i = 0; i < 10000000; i++);
+		*GPIOF_ODR &= ~(1 << 4);
+		for (volatile int i = 0; i < 10000000; i++);
+	}
 
 
 }
