@@ -17,7 +17,7 @@
  */
 
 #include <stdint.h>
-#define RCC_AHB2ENR ((volatile uint32_t*) 0x44020C4C)
+#define RCC_AHB2ENR ((volatile uint32_t*) 0x44020C8C)
 #define GPIOF_MODER ((volatile uint32_t*) 0x42021400)
 #define GPIOF_ODR ((volatile uint32_t*) 0x42021414)
 
