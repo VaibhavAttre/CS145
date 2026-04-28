@@ -7,3 +7,6 @@
 **/*.list
 **/*.su
 **/*.cyclo
+
+# Optional STM32CubeIDE local/user state
+.settings/*.prefs
