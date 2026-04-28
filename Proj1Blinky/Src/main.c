@@ -30,12 +30,12 @@ int main(void)
 	*RCC_AHB2ENR |= (1 << 5);
 	*GPIOF_MODER &= ~(3 << 8);
 	*GPIOF_MODER |= (1 << 8);
-    /* Loop forever */
+
 	while(1){
 		*GPIOF_ODR |= (1 << 4);
-		for (volatile int i = 0; i < 10000000; i++);
+		for (volatile int i = 0; i < 1000; i++);
 		*GPIOF_ODR &= ~(1 << 4);
-		for (volatile int i = 0; i < 10000000; i++);
+		for (volatile int i = 0; i < 1000; i++);
 	}
 
 
