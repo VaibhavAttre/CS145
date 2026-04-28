@@ -28,7 +28,7 @@
 int main(void)
 {
 	*RCC_AHB2ENR |= (1 << 5);
-	*GPIOF_MODER &= ~(3 << 8); //THIS IS A TEST
+	*GPIOF_MODER &= ~(3 << 8); //THIS IS A TEST 2
 	*GPIOF_MODER |= (1 << 8);
 
 	while(1){

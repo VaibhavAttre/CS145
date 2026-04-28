@@ -31,7 +31,7 @@ int main(void)
 	*GPIOF_MODER &= ~(3 << 8);
 	*GPIOF_MODER |= (1 << 8);
 
-	while(1){
+	while(1){//YIEKESS
 		*GPIOF_ODR |= (1 << 4);
 		for (volatile int i = 0; i < 1000; i++);
 		*GPIOF_ODR &= ~(1 << 4);
