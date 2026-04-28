@@ -1,0 +1,9 @@
+.metadata/
+**/Debug/
+**/*.elf
+**/*.o
+**/*.d
+**/*.map
+**/*.list
+**/*.su
+**/*.cyclo
