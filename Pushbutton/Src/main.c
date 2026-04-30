@@ -76,6 +76,10 @@ static void delay(volatile uint32_t count)
     while (count--);
 }
 
+typedef enum {
+	STATE_POSITIVE,
+	STATE_NEGATIVE
+} SystemState;
 
 /* =========================
    Main
@@ -98,7 +102,7 @@ int main(void)
     *GPIOA_PUPDR &= ~(0x3U << (BUTTON_PIN * 2));
     *GPIOA_PUPDR |=  (0x1U << (BUTTON_PIN * 2)); // 01 = pull-up
 
-    /* --- 5. Configure PB10/PB11 as AF7 (USART3) --- */
+    /* --- 5. Configure PD8/PD9 as AF7 (USART3) --- */
     *GPIOB_MODER &= ~((0x3U << (USART3_TX_PIN * 2)) |
                       (0x3U << (USART3_RX_PIN * 2)));
     *GPIOB_MODER |=  ((0x2U << (USART3_TX_PIN * 2)) |  // 10 = AF
@@ -123,25 +127,21 @@ int main(void)
     *GPIOC_BSRR = LED_RESET;
 
     /* --- 8. Main loop --- */
-    uint32_t led_state   = 0;
-    uint32_t prev_button = 1;   // 1 = released
+        uint32_t led_state = STATE_POSITIVE;
+        uint32_t current_button = 1;
 
     while (1)
     {
-        uint32_t current_button = (*GPIOA_IDR >> BUTTON_PIN) & 1U;
+    	uint32_t pressed = ((*GPIOA_IDR >> BUTTON_PIN) & 1U) == 0;
+    	if (*USART3_ISR & USART_ISR_RXNE){
+    		uint8_t c = (uint8_t)(*USART3_RDR & 0xFF);
+    		if(c= 'p' || c == 'P') {led_state = STATE_POSITIVE;}
+    		else if (c == 'n' || c == 'N') {led_state = STATE_NEGATIVE;}
+    	}
+    	uint32_t led_on;
+    	if (led_state==STATE_POSITIVE){led_on=pressed;}
+    	else {led_on = !pressed;}
 
-        /* Falling edge = just pressed */
-        if (prev_button == 1 && current_button == 0)
-        {
-            delay(80000);   // debounce ~5 ms @ 16 MHz
-
-            if (((*GPIOA_IDR >> BUTTON_PIN) & 1U) == 0)  // still pressed?
-            {
-                led_state ^= 1;
-                *GPIOC_BSRR = led_state ? LED_SET : LED_RESET;
-            }
-        }
-
-        prev_button = current_button;
+    	*GPIOC_BSRR = led_on ? LED_SET : LED_RESET;
     }
 }
