@@ -17,10 +17,10 @@
 #define GPIOC_MODER     ((volatile uint32_t*) 0x42020800)
 #define GPIOC_BSRR      ((volatile uint32_t*) 0x42020818)
 
-/* GPIOB: USART3 TX/RX (PB10/PB11) */
-#define GPIOB_MODER     ((volatile uint32_t*) 0x42020400)
-#define GPIOB_PUPDR     ((volatile uint32_t*) 0x4202040C)
-#define GPIOB_AFRH      ((volatile uint32_t*) 0x42020424)
+/* GPIOD: USART3 TX/RX through ST-LINK VCP */
+#define GPIOD_MODER     ((volatile uint32_t*) 0x42020C00)
+#define GPIOD_PUPDR     ((volatile uint32_t*) 0x42020C0C)
+#define GPIOD_AFRH      ((volatile uint32_t*) 0x42020C24)
 
 /* USART3 */
 #define USART3_CR1      ((volatile uint32_t*) 0x40004800)
