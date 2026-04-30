@@ -74,6 +74,13 @@ typedef enum {
     STATE_NEGATIVE = 1
 } SystemState;
 
+
+void uart_send(uint8_t c)
+{
+    while ((*USART3_ISR & USART_ISR_TXE) == 0);  // wait until ready
+    *USART3_TDR = c;
+}
+
 /* =========================
    Main
    ========================= */
@@ -127,7 +134,7 @@ int main(void)
        Baud rate divider:
        16,000,000 / 115,200 ≈ 139
     */
-    *USART3_BRR = 556;
+    *USART3_BRR = 0x0682;
 
     /* Enable USART3, receiver, and transmitter */
     *USART3_CR1 = USART_CR1_UE | USART_CR1_RE | USART_CR1_TE;
@@ -143,6 +150,7 @@ int main(void)
         if ((*USART3_ISR & USART_ISR_RXNE) != 0)
         {
             uint8_t c = (uint8_t)(*USART3_RDR & 0xFFU);
+            uart_send(c);
 
             if (c == 'p' || c == 'P')
             {
