@@ -38,8 +38,8 @@
 #define LED_PIN         0   // PC0  (Arduino A1)
 #define BUTTON_PIN      6   // PA6  (Arduino A0)
 
-#define USART3_TX_PIN   10  // PB10
-#define USART3_RX_PIN   11  // PB11
+#define USART3_TX_PIN   8  // PB8
+#define USART3_RX_PIN   9  // PB9
 
 
 /* =========================
@@ -88,7 +88,7 @@ int main(void)
     *RCC_APB1LENR |= USART3_EN;
 
     /* --- 2. Configure PC0 (LED) as output --- */
-    *GPIOC_MODER &= ~(0x3U << (LED_PIN * 2));   // clear
+    *GPIOC_MODER &= ~(0x3U << (LED_PIN * 2));   // clear PC0 mode bits
     *GPIOC_MODER |=  (0x1U << (LED_PIN * 2));   // 01 = output
 
     /* --- 3. Configure PA6 (button) as input --- */
@@ -101,16 +101,18 @@ int main(void)
     /* --- 5. Configure PB10/PB11 as AF7 (USART3) --- */
     *GPIOB_MODER &= ~((0x3U << (USART3_TX_PIN * 2)) |
                       (0x3U << (USART3_RX_PIN * 2)));
-    *GPIOB_MODER |=  ((0x2U << (USART3_TX_PIN * 2)) |  // 10 = AF
+
+    *GPIOB_MODER |=  ((0x2U << (USART3_TX_PIN * 2)) |  // 10 = alternate function
                       (0x2U << (USART3_RX_PIN * 2)));
 
-    *GPIOB_AFRH  &= ~((0xFU << ((USART3_TX_PIN - 8) * 4)) |
-                      (0xFU << ((USART3_RX_PIN - 8) * 4)));
-    *GPIOB_AFRH  |=  ((7U   << ((USART3_TX_PIN - 8) * 4)) |  // AF7
-                      (7U   << ((USART3_RX_PIN - 8) * 4)));
+    *GPIOB_AFRH &= ~((0xFU << ((USART3_TX_PIN - 8) * 4)) |
+                     (0xFU << ((USART3_RX_PIN - 8) * 4)));
+
+    *GPIOB_AFRH |=  ((7U << ((USART3_TX_PIN - 8) * 4)) |  // AF7
+                     (7U << ((USART3_RX_PIN - 8) * 4)));
 
     *GPIOB_PUPDR &= ~(0x3U << (USART3_RX_PIN * 2));
-    *GPIOB_PUPDR |=  (0x1U << (USART3_RX_PIN * 2));    // pull-up on RX
+    *GPIOB_PUPDR |=  (0x1U << (USART3_RX_PIN * 2)); // pull-up on RX
 
     /* --- 6. Configure USART3 at 115200 baud (16 MHz HSI) --- */
     *USART3_CR1 = 0;
