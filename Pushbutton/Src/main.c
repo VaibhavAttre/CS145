@@ -136,7 +136,7 @@ int main(void)
        Baud rate divider:
        16,000,000 / 115,200 ≈ 139
     */
-    *USART3_BRR = 556; //
+    *USART3_BRR = 52083; //
 
     /* Enable USART3, receiver, and transmitter */
     *USART3_CR1 = USART_CR1_UE | USART_CR1_RE | USART_CR1_TE;
