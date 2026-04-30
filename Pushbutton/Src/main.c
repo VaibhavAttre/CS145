@@ -60,6 +60,8 @@
 #define USART_CR1_UE    (1U << 0)
 #define USART_CR1_RE    (1U << 2)
 #define USART_CR1_TE    (1U << 3)
+#define USART3_TDR      ((volatile uint32_t*) 0x40004828)
+#define USART_ISR_TXE   (1U << 7)   // TX register empty
 
 /* BSRR helpers for LED (PC0) */
 #define LED_SET         (1U << LED_PIN)
