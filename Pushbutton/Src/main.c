@@ -38,8 +38,8 @@
 #define LED_PIN         0   // PC0  (Arduino A1)
 #define BUTTON_PIN      6   // PA6  (Arduino A0)
 
-#define USART3_TX_PIN   10  // PB10
-#define USART3_RX_PIN   11  // PB11
+#define USART3_TX_PIN   8  // PB10
+#define USART3_RX_PIN   9  // PB11
 
 
 /* =========================
@@ -135,7 +135,7 @@ int main(void)
     	uint32_t pressed = ((*GPIOA_IDR >> BUTTON_PIN) & 1U) == 0;
     	if (*USART3_ISR & USART_ISR_RXNE){
     		uint8_t c = (uint8_t)(*USART3_RDR & 0xFF);
-    		if(c= 'p' || c == 'P') {led_state = STATE_POSITIVE;}
+    		if(c == 'p' || c == 'P') {led_state = STATE_POSITIVE;}
     		else if (c == 'n' || c == 'N') {led_state = STATE_NEGATIVE;}
     	}
     	uint32_t led_on;
