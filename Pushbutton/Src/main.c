@@ -145,6 +145,14 @@ int main(void)
     SystemState state = STATE_POSITIVE;   // system initially POSITIVE
     *GPIOC_BSRR = LED_RESET;              // LED off to start
 
+    for (int i = 0; i < 3; i++) {
+        *GPIOC_BSRR = LED_SET;
+        for (volatile int d = 0; d < 500000; d++);
+        *GPIOC_BSRR = LED_RESET;
+        for (volatile int d = 0; d < 500000; d++);
+    }
+
+
     while (1)
     {
         uint32_t pressed = (((*GPIOA_IDR >> BUTTON_PIN) & 1U) == 0);
@@ -157,10 +165,16 @@ int main(void)
             if (c == 'p' || c == 'P')
             {
                 state = STATE_POSITIVE;
+                uart_send('P');  // confirm you entered POSITIVE state
+                uart_send('\r');
+                uart_send('\n');
             }
             else if (c == 'n' || c == 'N')
             {
                 state = STATE_NEGATIVE;
+                uart_send('N');  // confirm you entered NEGATIVE state
+                uart_send('\r');
+                uart_send('\n');
             }
         }
 
