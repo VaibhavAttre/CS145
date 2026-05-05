@@ -14,16 +14,16 @@
 #define GPIOC_BSRR ((volatile uint32_t*) 0x42020818)
 
 /* NVIC */
-#define NVIC_ISER1 ((volatile uint32_t*))
+#define NVIC_ISER1 ((volatile uint32_t*)) 0xE000E104
 #define TIM2_NVIC_BIT 13U
 
 /* TIMER */
-#define TIM2_CR1
-#define TIM2_DIER
-#define TIM2_SR
-#define TIM2_EGR
-#define TIM2_PSC
-#define TIM2_ARR
+#define TIM2_CR1 ((volatile uint32_t*) 0x40000000)
+#define TIM2_DIER ((volatile uint32_t*) 0x4000000C)
+#define TIM2_SR ((volatile uint32_t*) 0x40000010)
+#define TIM2_EGR ((volatile uint32_t*) 0x40000014)
+#define TIM2_PSC ((volatile uint32_t*) 0x40000028)
+#define TIM2_ARR ((volatile uint32_t*) 0x4000002C)
 
 #define LED_PIN 1U   // PC0
 #define BUTTON_PIN 6   // PA6
