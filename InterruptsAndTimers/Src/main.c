@@ -75,7 +75,7 @@ void TIM2_IRQHandler(void) {
 void timer_init(void) {
 
 	//INIT CODE FOR TIMER
-	*TIM2_CR1 &= ~TIM2_CR1_CEN;
+	*TIM2_CR1 &= ~TIM_CR1_CEN;
 
 	*TIM2_PSC = 31999;
 	*TIM2_ARR = 999;
@@ -83,11 +83,11 @@ void timer_init(void) {
 	*TIM2_DIER |= TIM_DIER_UIE;
 	*TIM2_EGR |= TIM_EGR_UG;
 
-	nvic_init();
-
 	*TIM2_SR &= ~TIM_SR_UIF;
 
-	*TIM2_CR1 |= TIM2_CR1_CEN;
+	nvic_init();
+
+	*TIM2_CR1 |= TIM_CR1_CEN;
 }
 
 void clock_init(void) {
@@ -137,6 +137,11 @@ int main(void) {
 	clock_init();
 	led_init();
 	button_init();
-	time_init();
+	timer_init();
+
+	while(1) {
+
+
+	}
 }
 
