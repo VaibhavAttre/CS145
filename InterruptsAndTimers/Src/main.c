@@ -32,13 +32,16 @@
 /* RCC_AHB2ENR  */
 #define GPIOA_EN (1U << 0)
 #define GPIOC_EN (1U << 2)
-#define GPIOD_EN (1U << 3)
+#define TIM2_EN (1U << 0)
 
 #define LED_SET (1U << LED_PIN)
 #define LED_RESET (1U << (LED_PIN + 16))
 
 int main(void)
 {
+	/* Clock Enables */
+	*RCC_AHB2ENR |= GPIOA_EN | GPIOC_EN;
+	*RCC_APB1LENR |= TIM2_EN;
 
 
 }
