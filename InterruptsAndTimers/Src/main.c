@@ -92,10 +92,9 @@ void led_init(void) {
 }
 
 void button_init(void) {
-
-	//INIT CODE FOR TIMER
-
-
+    *GPIOA_MODER &= ~(0x3U << (BUTTON_PIN * 2));
+    *GPIOA_PUPDR &= ~(0x3U << (BUTTON_PIN * 2));
+    *GPIOA_PUPDR |=  (0x1U << (BUTTON_PIN * 2));
 }
 
 int main(void) {
