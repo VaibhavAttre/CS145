@@ -46,6 +46,13 @@
 #define TIM_SR_UIF (1U << 0)   // Bit 0: update interrupt flag (slide p.1671)
 #define TIM_EGR_UG (1U << 0)   // Bit 0: update generation
 
+void TIM2_IRQHandler(void){
+	if(TIM2_SR & 0x1){
+		TIM2_SR &= ~0x1;
+		//Led functions
+	}
+}
+
 int main(void)
 {
 	/* Clock Enables */
