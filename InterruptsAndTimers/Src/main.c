@@ -61,16 +61,16 @@
 #define GPIO_PULL_UP 0x1U
 #define GPIO_PULL_DOWN 0x2U
 
-void TIM2_IRQHandler(void) {
+volatile uint32_t blink_led_on = 0;
 
-	if((*TIM2_SR & TIM_SR_UIF) != 0){
+/*
+ * INIT FUNCTIONS
+ */
 
-		*TIM2_SR &= ~TIM_SR_UIF;
+void nvic_init(void) {
 
-		//Led functions
-	}
+	*NVIC_ISER1 = (1U << TIM2_NVIC_BIT);
 }
-
 
 void timer_init(void) {
 
@@ -96,10 +96,7 @@ void clock_init(void) {
 	*RCC_APB1LENR |= TIM2_EN;
 }
 
-void nvic_init(void) {
 
-	*NVIC_ISER1 = (1U << TIM2_NVIC_BIT);
-}
 
 void led_init(void) {
 
@@ -121,6 +118,29 @@ void button_init(void) {
     *GPIOA_PUPDR &= ~(0x3U << (BUTTON_PIN * 2));
     *GPIOA_PUPDR |=  (0x1U << (BUTTON_PIN * 2));
 }
+
+
+
+void TIM2_IRQHandler(void) {
+
+	if((*TIM2_SR & TIM_SR_UIF) != 0){
+
+		*TIM2_SR &= ~TIM_SR_UIF;
+
+		//Led functions
+
+		if(blink_led_on) {
+
+			*GPIOC_BSRR = BLINK_LED_RESET;
+			blink_led_on = 0;
+		} else {
+
+			*GPIOC_BSRR = BLINK_LED_SET;
+			blink_led_on = 1;
+		}
+	}
+}
+
 
 int main(void) {
 
