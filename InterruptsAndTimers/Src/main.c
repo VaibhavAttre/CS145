@@ -68,14 +68,15 @@ void timer_init(void) {
 	TIM2_DIER |= TIM_DIER_UIE;
 	TIM2_EGR |= TIM_EGR_UG;
 
-	TIM2_SR &= ~TIM_SR_UI;
+	TIM2_SR &= ~TIM_SR_UIF;
 
 	TIM2_CR1 |= TIM2_CR1_CEN;
 }
 
 void clock_init(void) {
 
-
+	*RCC_AHB2ENR |= GPIOA_EN | GPIOC_EN;
+	*RCC_APB1LENR |= TIM2_EN;
 }
 
 void nvic_init(void) {
