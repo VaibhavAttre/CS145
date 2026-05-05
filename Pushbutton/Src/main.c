@@ -121,7 +121,7 @@ int main(void) {
 
         if ((*USART3_ISR & USART_ISR_RXNE) != 0) {
             uint8_t c = (uint8_t)(*USART3_RDR & 0xFFU);
-            uart_send(c);
+           // uart_send(c);
 
             if (c == 'p' || c == 'P') {
                 state = STATE_POSITIVE;
