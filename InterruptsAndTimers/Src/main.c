@@ -38,9 +38,9 @@
 
 //HELPERS TO SET STUFF
 #define TIM_CR1_CEN (1U << 0)   // Bit 0: counter enable
-#define TIM_CR1_UDIS (1U << 1)   // Bit 1: update disable (0 = updates allowed)
-#define TIM_CR1_DIR (1U << 4)   // Bit 4: direction (0=up, 1=down)
-#define TIM_CR1_ARPE (1U << 7)   // Bit 7: auto-reload preload enable
+//#define TIM_CR1_UDIS (1U << 1)   // Bit 1: update disable (0 = updates allowed)
+//#define TIM_CR1_DIR (1U << 4)   // Bit 4: direction (0=up, 1=down)
+//#define TIM_CR1_ARPE (1U << 7)   // Bit 7: auto-reload preload enable
 
 #define TIM_DIER_UIE (1U << 0)   // Update interrupt enable
 #define TIM_SR_UIF (1U << 0)   // Bit 0: update interrupt flag (slide p.1671)
@@ -60,8 +60,17 @@ void TIM2_IRQHandler(void) {
 void timer_init(void) {
 
 	//INIT CODE FOR TIMER
+	TIM2_CR1 &= ~TIM2_CR1_CEN;
 
-	*RCC_APB1LENR |= TIM2_EN;
+	TIM2_PSC = 31999;
+	TIM2_ARR = 999;
+
+	TIM2_DIER |= TIM_DIER_UIE;
+	TIM2_EGR |= TIM_EGR_UG;
+
+	TIM2_SR &= ~TIM_SR_UI;
+
+	TIM2_CR1 |= TIM2_CR1_CEN;
 }
 
 void clock_init(void) {
@@ -78,14 +87,14 @@ void led_init(void) {
 
 	//INIT CODE FOR TIMER
 
-	*RCC_AHB2ENR |= GPIOA_EN | GPIOC_EN;
+
 }
 
 void button_init(void) {
 
 	//INIT CODE FOR TIMER
 
-	*RCC_AHB2ENR |= GPIOA_EN | GPIOC_EN;
+
 }
 
 int main(void) {
@@ -100,12 +109,7 @@ int main(void) {
 		NVIC_ISER1 bit = 1   // CPU is allowed to accept TIM2 interrupt
 	 */
 
-	/*
-	 *
-	 TIM2_PSC = 31999;  // make timer tick every 1 ms
-	 TIM2_ARR = 999;    // interrupt every 1000 ms = 1 second4
-	  Somethign liek that probably to blink every 1 second
-	 */
+	clock_init();
 	led_init();
 	button_init();
 	timer_init();
