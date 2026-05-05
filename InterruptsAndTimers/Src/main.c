@@ -60,17 +60,17 @@ void TIM2_IRQHandler(void) {
 void timer_init(void) {
 
 	//INIT CODE FOR TIMER
-	TIM2_CR1 &= ~TIM2_CR1_CEN;
+	*TIM2_CR1 &= ~TIM2_CR1_CEN;
 
-	TIM2_PSC = 31999;
-	TIM2_ARR = 999;
+	*TIM2_PSC = 31999;
+	*TIM2_ARR = 999;
 
-	TIM2_DIER |= TIM_DIER_UIE;
-	TIM2_EGR |= TIM_EGR_UG;
+	*TIM2_DIER |= TIM_DIER_UIE;
+	*TIM2_EGR |= TIM_EGR_UG;
 
-	TIM2_SR &= ~TIM_SR_UIF;
+	*TIM2_SR &= ~TIM_SR_UIF;
 
-	TIM2_CR1 |= TIM2_CR1_CEN;
+	*TIM2_CR1 |= TIM2_CR1_CEN;
 }
 
 void clock_init(void) {
