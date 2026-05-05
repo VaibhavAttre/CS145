@@ -28,7 +28,6 @@
 #define LED_PIN 1U   // PC0
 #define BUTTON_PIN 6   // PA6
 
-
 /* RCC_AHB2ENR  */
 #define GPIOA_EN (1U << 0)
 #define GPIOC_EN (1U << 2)
@@ -36,6 +35,16 @@
 
 #define LED_SET (1U << LED_PIN)
 #define LED_RESET (1U << (LED_PIN + 16))
+
+//HELPERS TO SET STUFF
+#define TIM_CR1_CEN (1U << 0)   // Bit 0: counter enable
+#define TIM_CR1_UDIS (1U << 1)   // Bit 1: update disable (0 = updates allowed)
+#define TIM_CR1_DIR (1U << 4)   // Bit 4: direction (0=up, 1=down)
+#define TIM_CR1_ARPE (1U << 7)   // Bit 7: auto-reload preload enable
+
+#define TIM_DIER_UIE (1U << 0)   // Update interrupt enable
+#define TIM_SR_UIF (1U << 0)   // Bit 0: update interrupt flag (slide p.1671)
+#define TIM_EGR_UG (1U << 0)   // Bit 0: update generation
 
 int main(void)
 {
