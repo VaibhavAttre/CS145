@@ -25,18 +25,19 @@
 #define TIM2_PSC ((volatile uint32_t*) 0x40000028) //prescaler
 #define TIM2_ARR ((volatile uint32_t*) 0x4000002C) //auto reload value
 
-#define LED_PIN 1U   // PC0
-#define BUTTON_PIN 6   // PA6
+#define BUTTON_PIN 6U
+
+#define BLINK_LED_PIN 0U
+#define BUTTON_LED_PIN 1U
 
 /* RCC_AHB2ENR  */
 #define GPIOA_EN (1U << 0)
 #define GPIOC_EN (1U << 2)
 #define TIM2_EN (1U << 0)
 
-#define LED_SET (1U << LED_PIN)
-#define LED_RESET (1U << (LED_PIN + 16))
 
 //HELPERS TO SET STUFF
+
 #define TIM_CR1_CEN (1U << 0)   // Bit 0: counter enable
 //#define TIM_CR1_UDIS (1U << 1)   // Bit 1: update disable (0 = updates allowed)
 //#define TIM_CR1_DIR (1U << 4)   // Bit 4: direction (0=up, 1=down)
@@ -45,6 +46,20 @@
 #define TIM_DIER_UIE (1U << 0)   // Update interrupt enable
 #define TIM_SR_UIF (1U << 0)   // Bit 0: update interrupt flag (slide p.1671)
 #define TIM_EGR_UG (1U << 0)   // Bit 0: update generation
+
+
+#define BLINK_LED_SET (1U  << BLINK_LED_PIN)
+#define BLINK_LED_RESET (1U << (BLINK_LED_PIN + 16U))
+
+#define BUTTON_LED_SET (1U << BUTTON_LED_PIN)
+#define BUTTON_LED_RESET (1U << (BUTTON_LED_PIN + 16U))
+
+#define GPIO_MODE_INPUT 0x0U
+#define GPIO_MODE_OUTPUT 0x1U
+
+#define GPIO_PULL_NONE 0x0U
+#define GPIO_PULL_UP 0x1U
+#define GPIO_PULL_DOWN 0x2U
 
 void TIM2_IRQHandler(void) {
 
@@ -81,14 +96,22 @@ void clock_init(void) {
 
 void nvic_init(void) {
 
-
+	*NVIC_ISER1 = (1U << TIM2_NVIC_BIT);
 }
 
 void led_init(void) {
 
-	//INIT CODE FOR TIMER
+    /* Clear mode bits for PC0 and PC1 */
+    *GPIOC_MODER &= ~((0x3U << (BLINK_LED_PIN * 2U)) |
+                      (0x3U << (BUTTON_LED_PIN * 2U)));
 
+    /* Set PC0 and PC1 to output mode */
+    *GPIOC_MODER |=  ((GPIO_MODE_OUTPUT << (BLINK_LED_PIN * 2U)) |
+                      (GPIO_MODE_OUTPUT << (BUTTON_LED_PIN * 2U)));
 
+	/* Start both LEDs off */
+	*GPIOC_BSRR = BLINK_LED_RESET;
+	*GPIOC_BSRR = BUTTON_LED_RESET;
 }
 
 void button_init(void) {
@@ -110,8 +133,11 @@ int main(void) {
 	 */
 
 	clock_init();
+
 	led_init();
 	button_init();
-	timer_init();
+	keypad_init();
+
+	timer2_init();
 }
 
