@@ -14,7 +14,7 @@
 #define GPIOC_BSRR ((volatile uint32_t*) 0x42020818)
 
 /* NVIC */
-#define NVIC_ISER1 ((volatile uint32_t*)) 0xE000E104
+#define NVIC_ISER1 ((volatile uint32_t*) 0xE000E104)
 #define TIM2_NVIC_BIT 13U
 
 /* TIMER */
