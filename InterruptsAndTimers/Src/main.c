@@ -28,7 +28,7 @@
 #define BUTTON_PIN 6U
 
 #define BLINK_LED_PIN 0U
-#define BUTTON_LED_PIN 1U
+#define BUTTON_LED_PIN 3U
 
 /* RCC_AHB2ENR  */
 #define GPIOA_EN (1U << 0)
@@ -160,8 +160,12 @@ int main(void) {
 	timer_init();
 
 	while(1) {
-
-
+		if((*GPIOA_IDR & (1U << BUTTON_PIN)) == 0){
+			*GPIOC_BSRR = BUTTON_LED_SET;
+		}
+		else{
+			*GPIOC_BSRR = BUTTON_LED_RESET;
+		}
 	}
 }
 
