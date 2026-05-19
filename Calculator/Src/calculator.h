@@ -5,9 +5,10 @@
  *      Author: vaibh
  */
 
-#ifndef CALCULATOR_H_
-#define CALCULATOR_H_
+#ifndef CALCULATOR_H
+#define CALCULATOR_H
 
-
+void calc_init(void);
+void calc_update(char);
 
 #endif /* CALCULATOR_H_ */
