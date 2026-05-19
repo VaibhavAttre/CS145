@@ -1,8 +1,11 @@
 #include "lcd.h"
+#include "keypad.h"
+#include "calculator.h"
 
 int main(void)
 {
     lcd_init();
+    keypad_init();
 
     lcd_clear();
 
