@@ -186,10 +186,13 @@ char keypad_get_key(void)
     return 0;
 }
 
-void keypad_indicate_key(char key)
+char keypad_indicate_key(char key)
 {
     int n = 0;
     if (key >= '1' && key <= '9') n = key - '0';
-    else if (key == '#')          n = 10;
-    if (n > 0) led_blink(n);
+    //else if (key == '#')          n = 10;
+    else if (key == '*')          n = 11;
+
+    return (char)n;
+    //if (n > 0) led_blink(n);
 }
