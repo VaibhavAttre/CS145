@@ -1,20 +1,18 @@
-#include "keypad.h"
 #include "lcd.h"
-#include "calculator.h"
 
 int main(void)
 {
-	lcd_init();
-    keypad_init();   /* 3 blinks on boot = init OK */
-    calc_init();
+    lcd_init();
+
+    lcd_clear();
+
+    lcd_set_cursor(0, 0);
+    lcd_print("HELLO");
+
+    lcd_set_cursor(1, 0);
+    lcd_print("STM32H563ZI");
 
     while (1)
     {
-        char key = keypad_get_key();
-
-        if (key != 0)
-            calc_update(key);
-
-        keypad_delay_short();
     }
 }

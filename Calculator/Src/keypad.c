@@ -143,7 +143,7 @@ char keypad_get_key(void)
     return 0;
 }
 
-char keypad_indicate_key(char key)
+/*char keypad_indicate_key(char key)
 {
     int n = 0;
     if (key >= '1' && key <= '9') n = key - '0';
@@ -153,3 +153,4 @@ char keypad_indicate_key(char key)
     return (char)n;
     //if (n > 0) led_blink(n);
 }
+*/
