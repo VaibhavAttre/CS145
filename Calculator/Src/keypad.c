@@ -1,152 +1,195 @@
 #include "keypad.h"
+#include <stdint.h>
 
-#define RCC_BASE       0x44020C00UL
-#define GPIOA_BASE     0x42020000UL
-#define GPIOB_BASE     0x42020400UL
-#define GPIOC_BASE     0x42020800UL
-#define GPIOD_BASE     0x42020C00UL
-#define GPIOE_BASE     0x42021000UL
-#define GPIOG_BASE     0x42021800UL
-#define USART3_BASE    0x40004800UL
+/* ---------- RCC ---------- */
+#define RCC_AHB2ENR  (*(volatile uint32_t *)0x44020C8CUL)
 
-#define RCC_AHB2ENR    (*((volatile uint32_t *)(RCC_BASE + 0x8C)))
-#define RCC_APB1ENR1   (*((volatile uint32_t *)(RCC_BASE + 0xA4)))
+/* ---------- GPIO bases ---------- */
+#define GPIOB_BASE   0x42020400UL
+#define GPIOE_BASE   0x42021000UL
+#define GPIOF_BASE   0x42021400UL
+#define GPIOG_BASE   0x42021800UL
 
-#define GPIO_MODER(base)   (*((volatile uint32_t *)((base) + 0x00)))
-#define GPIO_PUPDR(base)   (*((volatile uint32_t *)((base) + 0x0C)))
-#define GPIO_IDR(base)     (*((volatile uint32_t *)((base) + 0x10)))
-#define GPIO_ODR(base)     (*((volatile uint32_t *)((base) + 0x14)))
-#define GPIO_BSRR(base)    (*((volatile uint32_t *)((base) + 0x18)))
-#define GPIO_AFRH(base)    (*((volatile uint32_t *)((base) + 0x24)))
+/* ---------- GPIO registers ---------- */
+#define GPIO_MODER(b)   (*(volatile uint32_t *)((b) + 0x00))
+#define GPIO_OTYPER(b)  (*(volatile uint32_t *)((b) + 0x04))
+#define GPIO_PUPDR(b)   (*(volatile uint32_t *)((b) + 0x0C))
+#define GPIO_IDR(b)     (*(volatile uint32_t *)((b) + 0x10))
+#define GPIO_BSRR(b)    (*(volatile uint32_t *)((b) + 0x18))
 
-#define USART3_CR1     (*((volatile uint32_t *)(USART3_BASE + 0x00)))
-#define USART3_BRR     (*((volatile uint32_t *)(USART3_BASE + 0x0C)))
-#define USART3_ISR     (*((volatile uint32_t *)(USART3_BASE + 0x1C)))
-#define USART3_TDR     (*((volatile uint32_t *)(USART3_BASE + 0x28)))
+/* ---------- LED: PF4 = LD2 yellow ---------- */
+#define LED_BASE  GPIOF_BASE
+#define LED_PIN   4
 
-static const char keymap[4][4] = {
+typedef struct { uint32_t base; uint32_t pin; } Pin;
+
+/*
+ * ROWS = outputs (driven LOW one at a time, HIGH when idle)
+ * Keypad ribbon pin 1-4 = Row 1-4
+ */
+static const Pin ROW[4] = {
+    {GPIOB_BASE, 7},   /* Row 1 -> D0 -> PB7  */
+    {GPIOB_BASE, 6},   /* Row 2 -> D1 -> PB6  */
+    {GPIOG_BASE, 14},  /* Row 3 -> D2 -> PG14 */
+    {GPIOE_BASE, 13},  /* Row 4 -> D3 -> PE13 */
+};
+
+/*
+ * COLS = inputs with pull-up (read 0 when key pressed)
+ * Keypad ribbon pin 5-8 = Col 1-4
+ */
+static const Pin COL[4] = {
+    {GPIOE_BASE, 14},  /* Col 1 -> D4 -> PE14 */
+    {GPIOE_BASE, 11},  /* Col 2 -> D5 -> PE11 */
+    {GPIOE_BASE, 9},   /* Col 3 -> D6 -> PE9  */
+    {GPIOG_BASE, 12},  /* Col 4 -> D7 -> PG12 */
+};
+
+static const char KEY[4][4] = {
     {'1', '2', '3', 'A'},
     {'4', '5', '6', 'B'},
     {'7', '8', '9', 'C'},
-    {'*', '0', '#', 'D'}
+    {'*', '0', '#', 'D'},
 };
 
-static void delay_ms(uint32_t ms)
+/* ------------------------------------------------------------------ */
+/* Delays @ 250 MHz: 1 NOP ≈ 4 ns                                      */
+/* ------------------------------------------------------------------ */
+static void delay(volatile uint32_t n) { while (n--) __asm__("nop"); }
+
+/* These are NOT divided — full values needed at 250 MHz */
+void keypad_delay_short(void)       { delay(5000000/10);  }   /* ~20 ms settle/debounce */
+static void blink_half(void)        { delay(25000000/10); }   /* ~100 ms on or off      */
+static void blink_gap(void)         { delay(75000000/10); }   /* ~300 ms gap after seq  */
+
+/* ------------------------------------------------------------------ */
+/* GPIO helpers                                                         */
+/* ------------------------------------------------------------------ */
+static void pin_output_pushpull(uint32_t base, uint32_t pin)
 {
-    for (uint32_t i = 0; i < ms * 64000; i++)
-        __asm__("nop");
+    GPIO_MODER(base)  &= ~(3UL << (pin * 2));
+    GPIO_MODER(base)  |=  (1UL << (pin * 2));  /* 01 = output */
+    GPIO_OTYPER(base) &= ~(1UL << pin);         /* 0  = push-pull */
 }
 
-static void usart3_send_char(char c)
+static void pin_input_pullup(uint32_t base, uint32_t pin)
 {
-    while (!(USART3_ISR & (1UL << 7)));
-    USART3_TDR = (uint32_t)c;
+    GPIO_MODER(base) &= ~(3UL << (pin * 2));    /* 00 = input */
+    GPIO_PUPDR(base) &= ~(3UL << (pin * 2));
+    GPIO_PUPDR(base) |=  (1UL << (pin * 2));    /* 01 = pull-up */
 }
 
-static void usart3_print(const char *str)
+static void pin_high(uint32_t base, uint32_t pin)
 {
-    while (*str)
-        usart3_send_char(*str++);
+    GPIO_BSRR(base) = (1UL << pin);             /* set pin high */
 }
 
-static void set_row(int row, int level)
+static void pin_low(uint32_t base, uint32_t pin)
 {
-    switch (row)
-    {
-        case 0: GPIO_BSRR(GPIOA_BASE) = level ? (1UL << 0)  : (1UL << 16); break;
-        case 1: GPIO_BSRR(GPIOA_BASE) = level ? (1UL << 1)  : (1UL << 17); break;
-        case 2: GPIO_BSRR(GPIOA_BASE) = level ? (1UL << 4)  : (1UL << 20); break;
-        case 3: GPIO_BSRR(GPIOB_BASE) = level ? (1UL << 0)  : (1UL << 16); break;
+    GPIO_BSRR(base) = (1UL << (pin + 16));      /* set pin low */
+}
+
+static int pin_read(uint32_t base, uint32_t pin)
+{
+    return (GPIO_IDR(base) >> pin) & 1;
+}
+
+/* ------------------------------------------------------------------ */
+/* LED                                                                  */
+/* ------------------------------------------------------------------ */
+static void led_on(void)  { pin_high(LED_BASE, LED_PIN); }
+static void led_off(void) { pin_low (LED_BASE, LED_PIN); }
+
+static void led_blink(int n)
+{
+    for (int i = 0; i < n; i++) {
+        led_on();  blink_half();
+        led_off(); blink_half();
     }
+    blink_gap();
 }
 
-static int read_col(int col)
-{
-    switch (col)
-    {
-        case 0: return !(GPIO_IDR(GPIOC_BASE) & (1UL << 1));
-        case 1: return !(GPIO_IDR(GPIOC_BASE) & (1UL << 0));
-        case 2: return !(GPIO_IDR(GPIOG_BASE) & (1UL << 14));
-        case 3: return !(GPIO_IDR(GPIOE_BASE) & (1UL << 13));
-    }
-
-    return 0;
-}
+/* ------------------------------------------------------------------ */
+/* Public API                                                           */
+/* ------------------------------------------------------------------ */
 
 void keypad_init(void)
 {
-    RCC_AHB2ENR |= (1UL << 0) | (1UL << 1) | (1UL << 2) | (1UL << 3) | (1UL << 4) | (1UL << 6);
+    /* Enable clocks: B=1, E=4, F=5, G=6 */
+    RCC_AHB2ENR |= (1UL << 1) | (1UL << 4) | (1UL << 5) | (1UL << 6);
+    (void)RCC_AHB2ENR;
+    delay(500);   /* let clocks settle */
 
-    GPIO_MODER(GPIOA_BASE) &= ~((3UL << 0) | (3UL << 2) | (3UL << 8));
-    GPIO_MODER(GPIOA_BASE) |=  ((1UL << 0) | (1UL << 2) | (1UL << 8));
+    /* LED init */
+    pin_output_pushpull(LED_BASE, LED_PIN);
+    led_off();
 
-    GPIO_MODER(GPIOB_BASE) &= ~(3UL << 0);
-    GPIO_MODER(GPIOB_BASE) |=  (1UL << 0);
-
-    GPIO_ODR(GPIOA_BASE) |= (1UL << 0) | (1UL << 1) | (1UL << 4);
-    GPIO_ODR(GPIOB_BASE) |= (1UL << 0);
-
-    GPIO_MODER(GPIOC_BASE) &= ~((3UL << 2) | (3UL << 0));
-    GPIO_PUPDR(GPIOC_BASE) &= ~((3UL << 2) | (3UL << 0));
-    GPIO_PUPDR(GPIOC_BASE) |=  ((1UL << 2) | (1UL << 0));
-
-    GPIO_MODER(GPIOG_BASE) &= ~(3UL << 28);
-    GPIO_PUPDR(GPIOG_BASE) &= ~(3UL << 28);
-    GPIO_PUPDR(GPIOG_BASE) |=  (1UL << 28);
-
-    GPIO_MODER(GPIOE_BASE) &= ~(3UL << 26);
-    GPIO_PUPDR(GPIOE_BASE) &= ~(3UL << 26);
-    GPIO_PUPDR(GPIOE_BASE) |=  (1UL << 26);
-
-    GPIO_MODER(GPIOD_BASE) &= ~(3UL << 16);
-    GPIO_MODER(GPIOD_BASE) |=  (2UL << 16);
-
-    GPIO_AFRH(GPIOD_BASE) &= ~(0xFUL << 0);
-    GPIO_AFRH(GPIOD_BASE) |=  (7UL << 0);
-
-    RCC_APB1ENR1 |= (1UL << 18);
-
-    USART3_BRR = 278;
-    USART3_CR1 = (1UL << 3) | (1UL << 0);
-
-    usart3_print("Keypad ready.\r\n");
-}
-
-char keypad_scan(void)
-{
-    for (int row = 0; row < 4; row++)
-    {
-        set_row(row, 0);
-        delay_ms(2);
-
-        for (int col = 0; col < 4; col++)
-        {
-            if (read_col(col))
-            {
-                set_row(row, 1);
-                return keymap[row][col];
-            }
-        }
-
-        set_row(row, 1);
+    /* ---------- Keypad init ----------
+       Set row pins as push-pull outputs, drive HIGH (idle).
+       Set col pins as inputs with pull-up.
+       Do this ONCE here, not repeatedly inside the scan loop. */
+    for (int r = 0; r < 4; r++) {
+        pin_output_pushpull(ROW[r].base, ROW[r].pin);
+        pin_high(ROW[r].base, ROW[r].pin);
+    }
+    for (int c = 0; c < 4; c++) {
+        pin_input_pullup(COL[c].base, COL[c].pin);
     }
 
+    /* 3 blinks = init OK */
+    led_blink(3);
+}
+
+/*
+ * Scans the keypad once.
+ * Returns the pressed key char, or 0 if nothing pressed.
+ * Blocks until the key is released before returning.
+ *
+ * Key fix: col pins are configured ONCE in init and stay as
+ * pull-up inputs. The scan loop only drives rows — it does NOT
+ * reconfigure col pins on every iteration.
+ */
+char keypad_get_key(void)
+{
+    for (int r = 0; r < 4; r++)
+    {
+        /* Drive all rows HIGH, then pull this row LOW */
+        for (int i = 0; i < 4; i++) pin_high(ROW[i].base, ROW[i].pin);
+        pin_low(ROW[r].base, ROW[r].pin);
+
+        /* Wait for the signal to settle before reading */
+        keypad_delay_short();
+
+        /* Read all 4 columns */
+        for (int c = 0; c < 4; c++)
+        {
+            if (pin_read(COL[c].base, COL[c].pin) == 0)
+            {
+                /* Debounce: wait another settle period and confirm */
+                keypad_delay_short();
+                if (pin_read(COL[c].base, COL[c].pin) == 0)
+                {
+                    /* Valid press — wait for release */
+                    while (pin_read(COL[c].base, COL[c].pin) == 0) { }
+                    keypad_delay_short();  /* debounce after release */
+
+                    /* Return all rows HIGH before returning */
+                    for (int i = 0; i < 4; i++) pin_high(ROW[i].base, ROW[i].pin);
+                    return KEY[r][c];
+                }
+            }
+        }
+    }
+
+    /* Nothing pressed — leave all rows HIGH */
+    for (int i = 0; i < 4; i++) pin_high(ROW[i].base, ROW[i].pin);
     return 0;
 }
 
-void keypad_loop(void)
+void keypad_indicate_key(char key)
 {
-    static char last_key = 0;
-
-    char key = keypad_scan();
-
-    if (key != 0 && key != last_key)
-    {
-        usart3_print("Key pressed: ");
-        usart3_send_char(key);
-        usart3_print("\r\n");
-    }
-
-    last_key = key;
-    delay_ms(50);
+    int n = 0;
+    if (key >= '1' && key <= '9') n = key - '0';
+    else if (key == '#')          n = 10;
+    if (n > 0) led_blink(n);
 }

@@ -55,6 +55,7 @@ defined in linker script */
   .weak Reset_Handler
   .type Reset_Handler, %function
 Reset_Handler:
+
   ldr   sp, =_estack    /* set stack pointer */
   ldr   r0, =_sstack
   msr   MSPLIM, r0      /* set stack pointer limit */
