@@ -33,17 +33,20 @@ void calc_update(char input){
 
 	switch (state) {
 		case INITIAL_STATE:
-			//lcd_clear_top();
-			//lcd_clear_bottom();
+			lcd_clear_top();
+			lcd_clear_bottom();
 			state = START_STATE;
+
 		case START_STATE:
-			//lcd_clear_top();
+
 			A = 0;
 			B = 0;
 			product = 0;
 			count = 0;
-			//lcd_set_cursor(0,0);
+			lcd_clear_top();
+			lcd_set_cursor(0,0);
 			state = A_STATE;
+			break;
 		case A_STATE:
 			if(input >= '0' && input <= '9'){
 				A = A*10 + (input - '0');
