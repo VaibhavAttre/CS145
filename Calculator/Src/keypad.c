@@ -16,8 +16,6 @@ static void delay(volatile uint32_t n) { while (n--) __asm__("nop"); }
 
 /* These are NOT divided — full values needed at 250 MHz */
 void keypad_delay_short(void)       { delay(5000000/10);  }   /* ~20 ms settle/debounce */
-static void blink_half(void)        { delay(25000000/10); }   /* ~100 ms on or off      */
-static void blink_gap(void)         { delay(75000000/10); }   /* ~300 ms gap after seq  */
 
 /* ------------------------------------------------------------------ */
 /* GPIO helpers                                                         */
@@ -57,15 +55,6 @@ static int pin_read(uint32_t base, uint32_t pin)
 static void led_on(void)  { pin_high(LED_BASE, LED_PIN); }
 static void led_off(void) { pin_low (LED_BASE, LED_PIN); }
 
-static void led_blink(int n)
-{
-    for (int i = 0; i < n; i++) {
-        led_on();  blink_half();
-        led_off(); blink_half();
-    }
-    blink_gap();
-}
-
 /* ------------------------------------------------------------------ */
 /* Public API                                                           */
 /* ------------------------------------------------------------------ */
@@ -93,8 +82,6 @@ void keypad_init(void)
         pin_input_pullup(COL[c].base, COL[c].pin);
     }
 
-    /* 3 blinks = init OK */
-    led_blink(3);
 }
 
 /*
@@ -102,7 +89,7 @@ void keypad_init(void)
  * Returns the pressed key char, or 0 if nothing pressed.
  * Blocks until the key is released before returning.
  *
- * Key fix: col pins are configured ONCE in init and stay as
+ * col pins are configured ONCE in init and stay as
  * pull-up inputs. The scan loop only drives rows — it does NOT
  * reconfigure col pins on every iteration.
  */
@@ -143,14 +130,3 @@ char keypad_get_key(void)
     return 0;
 }
 
-/*char keypad_indicate_key(char key)
-{
-    int n = 0;
-    if (key >= '1' && key <= '9') n = key - '0';
-    //else if (key == '#')          n = 10;
-    else if (key == '*')          n = 11;
-
-    return (char)n;
-    //if (n > 0) led_blink(n);
-}
-*/
