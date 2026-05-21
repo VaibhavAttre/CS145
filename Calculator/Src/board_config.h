@@ -9,11 +9,11 @@
 #define GPIOG_BASE   0x42021800UL
 
 /* ---------- GPIO registers ---------- */
-#define GPIO_MODER(b)   (*(volatile uint32_t *)((b) + 0x00))
-#define GPIO_OTYPER(b)  (*(volatile uint32_t *)((b) + 0x04))
-#define GPIO_PUPDR(b)   (*(volatile uint32_t *)((b) + 0x0C))
-#define GPIO_IDR(b)     (*(volatile uint32_t *)((b) + 0x10))
-#define GPIO_BSRR(b)    (*(volatile uint32_t *)((b) + 0x18))
+#define GPIO_MODER(b) (*(volatile uint32_t *)((b) + 0x00))
+#define GPIO_OTYPER(b) (*(volatile uint32_t *)((b) + 0x04))
+#define GPIO_PUPDR(b) (*(volatile uint32_t *)((b) + 0x0C))
+#define GPIO_IDR(b) (*(volatile uint32_t *)((b) + 0x10))
+#define GPIO_BSRR(b) (*(volatile uint32_t *)((b) + 0x18))
 
 /* ---------- LED: PF4 = LD2 yellow ---------- */
 #define LED_BASE  GPIOF_BASE
@@ -26,9 +26,9 @@ typedef struct { uint32_t base; uint32_t pin; } Pin;
  * Keypad ribbon pin 1-4 = Row 1-4
  */
 static const Pin ROW[4] = {
-    {GPIOB_BASE, 7},   /* Row 1 -> D0 -> PB7  */
-    {GPIOB_BASE, 6},   /* Row 2 -> D1 -> PB6  */
-    {GPIOG_BASE, 14},  /* Row 3 -> D2 -> PG14 */
+    {GPIOB_BASE, 7}, /* Row 1 -> D0 -> PB7  */
+    {GPIOB_BASE, 6}, /* Row 2 -> D1 -> PB6  */
+    {GPIOG_BASE, 14}, /* Row 3 -> D2 -> PG14 */
     {GPIOE_BASE, 13},  /* Row 4 -> D3 -> PE13 */
 };
 

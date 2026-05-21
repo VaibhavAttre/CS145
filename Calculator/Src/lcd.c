@@ -3,8 +3,6 @@
 #include <stddef.h>
 
 /*
- * STM32H563ZI Nucleo + 16x2 HD44780 LCD
- *
  * LCD 4-bit mode wiring:
  *
  * LCD D4  -> PA6  / Arduino A0
@@ -19,57 +17,51 @@
  * LCD VSS -> GND
  * LCD VDD -> 5V
  * LCD VO  -> middle pin of potentiometer
- * LCD A   -> 5V through resistor if needed
- * LCD K   -> GND
- *
- * IMPORTANT:
- * In 4-bit mode, connect to LCD pins D4-D7.
- * Do NOT use LCD D0-D3.
+ * LCD A -> 5V through resistor if needed
+ * LCD K -> GND
+
  */
 
-/* ============================================================
- * STM32H563 non-secure alias addresses
- * ============================================================ */
 
-#define RCC_BASE        0x54020C00UL
-#define RCC_AHB2ENR     (*(volatile uint32_t *)(RCC_BASE + 0x8CUL))
+#define RCC_BASE 0x54020C00UL
+#define RCC_AHB2ENR (*(volatile uint32_t *)(RCC_BASE + 0x8CUL))
 
-#define GPIOA_BASE      0x52020000UL
-#define GPIOB_BASE      0x52020400UL
-#define GPIOC_BASE      0x52020800UL
-#define GPIOD_BASE      0x52020C00UL
-#define GPIOF_BASE      0x52021400UL
+#define GPIOA_BASE 0x52020000UL
+#define GPIOB_BASE 0x52020400UL
+#define GPIOC_BASE 0x52020800UL
+#define GPIOD_BASE 0x52020C00UL
+#define GPIOF_BASE 0x52021400UL
 
-#define GPIO_MODER(b)   (*(volatile uint32_t *)((b) + 0x00U))
-#define GPIO_OTYPER(b)  (*(volatile uint32_t *)((b) + 0x04U))
+#define GPIO_MODER(b) (*(volatile uint32_t *)((b) + 0x00U))
+#define GPIO_OTYPER(b) (*(volatile uint32_t *)((b) + 0x04U))
 #define GPIO_OSPEEDR(b) (*(volatile uint32_t *)((b) + 0x08U))
-#define GPIO_PUPDR(b)   (*(volatile uint32_t *)((b) + 0x0CU))
-#define GPIO_BSRR(b)    (*(volatile uint32_t *)((b) + 0x18U))
+#define GPIO_PUPDR(b) (*(volatile uint32_t *)((b) + 0x0CU))
+#define GPIO_BSRR(b) (*(volatile uint32_t *)((b) + 0x18U))
 
 /* ============================================================
  * LCD pin mapping
  * ============================================================ */
 
-#define LCD_D4_BASE     GPIOA_BASE
-#define LCD_D4_PIN      6U
+#define LCD_D4_BASE GPIOA_BASE
+#define LCD_D4_PIN 6U
 
-#define LCD_D5_BASE     GPIOC_BASE
-#define LCD_D5_PIN      0U
+#define LCD_D5_BASE GPIOC_BASE
+#define LCD_D5_PIN 0U
 
-#define LCD_D6_BASE     GPIOC_BASE
-#define LCD_D6_PIN      3U
+#define LCD_D6_BASE GPIOC_BASE
+#define LCD_D6_PIN 3U
 
-#define LCD_D7_BASE     GPIOB_BASE
-#define LCD_D7_PIN      1U
+#define LCD_D7_BASE GPIOB_BASE
+#define LCD_D7_PIN 1U
 
-#define LCD_RS_BASE     GPIOF_BASE
-#define LCD_RS_PIN      3U
+#define LCD_RS_BASE GPIOF_BASE
+#define LCD_RS_PIN 3U
 
-#define LCD_RW_BASE     GPIOD_BASE
-#define LCD_RW_PIN      15U
+#define LCD_RW_BASE GPIOD_BASE
+#define LCD_RW_PIN 15U
 
-#define LCD_EN_BASE     GPIOD_BASE
-#define LCD_EN_PIN      14U
+#define LCD_EN_BASE GPIOD_BASE
+#define LCD_EN_PIN 14U
 
 /* ============================================================
  * Delay helpers
@@ -85,10 +77,7 @@ static void delay_cycles(volatile uint32_t cycles)
 
 static void delay_us(uint32_t us)
 {
-    /*
-     * Rough delay.
-     * If your clock is around 64 MHz, this is enough for LCD timing.
-     */
+
     while (us--)
     {
         delay_cycles(80U);
@@ -111,14 +100,14 @@ static void gpio_output(uint32_t base, uint32_t pin)
 {
     /* MODER: 01 = general purpose output */
     GPIO_MODER(base) &= ~(3UL << (pin * 2U));
-    GPIO_MODER(base) |=  (1UL << (pin * 2U));
+    GPIO_MODER(base) |= (1UL << (pin * 2U));
 
     /* OTYPER: 0 = push-pull */
     GPIO_OTYPER(base) &= ~(1UL << pin);
 
     /* OSPEEDR: 10 = high speed */
     GPIO_OSPEEDR(base) &= ~(3UL << (pin * 2U));
-    GPIO_OSPEEDR(base) |=  (2UL << (pin * 2U));
+    GPIO_OSPEEDR(base) |= (2UL << (pin * 2U));
 
     /* PUPDR: 00 = no pull-up/pull-down */
     GPIO_PUPDR(base) &= ~(3UL << (pin * 2U));

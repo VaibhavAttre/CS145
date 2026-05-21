@@ -9,13 +9,9 @@ static const char KEY[4][4] = {
     {'*', '0', '#', 'D'},
 };
 
-/* ------------------------------------------------------------------ */
-/* Delays @ 250 MHz: 1 NOP ≈ 4 ns                                      */
-/* ------------------------------------------------------------------ */
 static void delay(volatile uint32_t n) { while (n--) __asm__("nop"); }
 
-/* These are NOT divided — full values needed at 250 MHz */
-void keypad_delay_short(void)       { delay(5000000/10);  }   /* ~20 ms settle/debounce */
+void keypad_delay_short(void)       { delay(5000000/10);  }   //debounce
 
 /* ------------------------------------------------------------------ */
 /* GPIO helpers                                                         */
@@ -24,24 +20,24 @@ static void pin_output_pushpull(uint32_t base, uint32_t pin)
 {
     GPIO_MODER(base)  &= ~(3UL << (pin * 2));
     GPIO_MODER(base)  |=  (1UL << (pin * 2));  /* 01 = output */
-    GPIO_OTYPER(base) &= ~(1UL << pin);         /* 0  = push-pull */
+    GPIO_OTYPER(base) &= ~(1UL << pin);   /* 0  = push-pull */
 }
 
 static void pin_input_pullup(uint32_t base, uint32_t pin)
 {
-    GPIO_MODER(base) &= ~(3UL << (pin * 2));    /* 00 = input */
+    GPIO_MODER(base) &= ~(3UL << (pin * 2)); /* 00 = input */
     GPIO_PUPDR(base) &= ~(3UL << (pin * 2));
-    GPIO_PUPDR(base) |=  (1UL << (pin * 2));    /* 01 = pull-up */
+    GPIO_PUPDR(base) |=  (1UL << (pin * 2)); /* 01 = pull-up */
 }
 
 static void pin_high(uint32_t base, uint32_t pin)
 {
-    GPIO_BSRR(base) = (1UL << pin);             /* set pin high */
+    GPIO_BSRR(base) = (1UL << pin); /* set pin high */
 }
 
 static void pin_low(uint32_t base, uint32_t pin)
 {
-    GPIO_BSRR(base) = (1UL << (pin + 16));      /* set pin low */
+    GPIO_BSRR(base) = (1UL << (pin + 16)); /* set pin low */
 }
 
 static int pin_read(uint32_t base, uint32_t pin)
