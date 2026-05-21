@@ -1,12 +1,11 @@
-//addresses
 /* ---------- RCC ---------- */
-#define RCC_AHB2ENR  (*(volatile uint32_t *)0x44020C8CUL)
+#define RCC_AHB2ENR  (*(volatile uint32_t *)0x54020C8CUL)
 
 /* ---------- GPIO bases ---------- */
-#define GPIOB_BASE   0x42020400UL
-#define GPIOE_BASE   0x42021000UL
-#define GPIOF_BASE   0x42021400UL
-#define GPIOG_BASE   0x42021800UL
+#define GPIOB_BASE   0x52020400UL
+#define GPIOE_BASE   0x52021000UL
+#define GPIOF_BASE   0x52021400UL
+#define GPIOG_BASE   0x52021800UL
 
 /* ---------- GPIO registers ---------- */
 #define GPIO_MODER(b)   (*(volatile uint32_t *)((b) + 0x00))

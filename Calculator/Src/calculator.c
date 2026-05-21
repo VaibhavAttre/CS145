@@ -36,7 +36,7 @@ void calc_update(char input){
 			lcd_clear_top();
 			lcd_clear_bottom();
 			state = START_STATE;
-
+			break;
 		case START_STATE:
 
 			A = 0;
@@ -50,26 +50,26 @@ void calc_update(char input){
 		case A_STATE:
 			if(input >= '0' && input <= '9'){
 				A = A*10 + (input - '0');
-				//lcd_putc(input);
+				lcd_putc(input);
 				count++;
 				if( count == 8){
-					//lcd_clear_top();
+					lcd_clear_top();
 					count = 0;
-					//lcd_set_cursor(0,0);
+					lcd_set_cursor(0,0);
 					state = B_STATE;
 				}
 			}
 			else if(input == '*'){
-				//lcd_clear_top();
+				lcd_clear_top();
 				count = 0;
-				//lcd_set_cursor(0,0);
+				lcd_set_cursor(0,0);
 				state = B_STATE;
 			}
 			break;
 		case B_STATE:
 			if(input >= '0' && input <= '9'){
 				B = B*10 + (input-'0');
-				//lcd_putc(input);
+				lcd_putc(input);
 				count++;
 				if(count == 8){
 					state = DISPLAY_STATE;
@@ -82,9 +82,9 @@ void calc_update(char input){
 			else break;
 		case DISPLAY_STATE:
 			product = (uint64_t)A*B;
-			//lcd_clear_bottom();
-			//lcd_set_cursor(1,0);
-			//lcd_putuint64(product);
+			lcd_clear_bottom();
+			lcd_set_cursor(1,0);
+			lcd_putuint64(product);
 			state = START_STATE;
 			break;
 		default:
