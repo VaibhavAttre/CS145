@@ -1,7 +1,6 @@
 #include "breathing_led.h"
+#include "adc_driver.h"
 #include "pwm_driver.h"
-
-#define FAKE_ADC 4095U
 
 static void delay_ms(uint32_t ms)
 {
@@ -18,15 +17,14 @@ int main(void)
 {
 
     PWM_Init(1000, 16);
+    ADC_Init();
     BREATHING_LED_Init();
 
     while (1)
     {
 
     	//READ POTENTOIMETER/ADC VALUE
-
-        BREATHING_LED_Update(FAKE_ADC);
-
+        BREATHING_LED_Update(ADC_Read());
 
         delay_ms(1);
     }
