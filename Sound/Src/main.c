@@ -30,10 +30,10 @@ static void play_sequence(void)
         uint32_t freq = Tone_Frequency_From_Key(buf[i]);
         if (freq != 0) {
             PWM_Tone_Play(freq);
+            delay_ms(1000);
+            PWM_Tone_Stop();
+            delay_ms(50);
         }
-        delay_ms(1000);
-        PWM_Tone_Stop();
-        delay_ms(50);   /* brief gap between notes */
     }
 }
 
@@ -49,7 +49,9 @@ int main(void)
     if (v < 0 || (uint8_t)v > MAX_SEQUENCE_LENGTH) {
         EEPROM_ClearSequence();  // only initialize if garbage
     }          /* configures I2C1 + PB8/PB9 */
-
+    int v = EEPROM_ReadByte(0);
+    if (v < 0 || (uint8_t)v > MAX_SEQUENCE_LENGTH) {
+        EEPROM_ClearSequence();
     /* Start in Play Mode */
     ModeLEDs_Set(MODE_PLAY);
 
