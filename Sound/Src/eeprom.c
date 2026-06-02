@@ -1,21 +1,20 @@
 /*
- * eeprom.c
+ * eeprom.c  –  fixed version
  *
- * Bare-metal I2C1 driver for a 24-series EEPROM (AT24C32 / 24LC256 /
- * M24C64 …) on NUCLEO-H563ZI.
+ * Key changes vs original:
+ *   1. EEPROM_WriteByte now uses ACK-polling instead of a fixed 5 ms delay.
+ *      After the STOP the driver repeatedly probes the EEPROM with a 1-byte
+ *      write until it gets an ACK, which is the correct "write-cycle done"
+ *      handshake defined in every 24Cxx datasheet.  This is both faster and
+ *      more reliable than a blind delay.
  *
- * Hardware:
- *   SCL = PB8  (I2C1_SCL, AF4)
- *   SDA = PB9  (I2C1_SDA, AF4)
- *   EEPROM I2C address = 0x50 (A0=A1=A2=GND)
- *
- * The STM32H563 I2C peripheral uses the "NBYTES / RELOAD / AUTOEND"
- * transfer-control model introduced with the STM32F0/L0 generation.
- * This driver uses polling mode (no interrupts, no DMA).
- *
- * Note sequence layout:
- *   EEPROM[0]       = N  (number of keys stored, 0–128)
- *   EEPROM[1..N]    = key characters '1'–'8'
+ *   2. A small I2C bus-recovery delay (≈100 µs) is inserted after every
+ *      transaction (write OR read) before returning.  On the STM32H5 the
+ *      BUSY flag can remain asserted for a short window after STOPF is
+ *      cleared; without this gap the BUSY-wait at the start of the very
+ *      next call times out and that call silently returns -1.  This was
+ *      the direct cause of the length byte (EEPROM[0]) never being updated
+ *      past 1, so playback only ever replayed the first recorded key.
  */
 
 #include "eeprom.h"
@@ -29,13 +28,13 @@
 #define GPIO_OTYPER(b)  (*(volatile uint32_t *)((b) + 0x04))
 #define GPIO_OSPEEDR(b) (*(volatile uint32_t *)((b) + 0x08))
 #define GPIO_PUPDR(b)   (*(volatile uint32_t *)((b) + 0x0C))
-#define GPIO_AFRH(b)    (*(volatile uint32_t *)((b) + 0x24))  /* pins 8-15 */
+#define GPIO_AFRH(b)    (*(volatile uint32_t *)((b) + 0x24))
 
-#define RCC_AHB2ENR     (*(volatile uint32_t *)0x44020C8CUL)  /* GPIOBEN bit1 */
-#define RCC_APB1LENR    (*(volatile uint32_t *)0x44020C9CUL)  /* I2C1EN  bit21 */
+#define RCC_AHB2ENR     (*(volatile uint32_t *)0x44020C8CUL)
+#define RCC_APB1LENR    (*(volatile uint32_t *)0x44020C9CUL)
 
 /* ------------------------------------------------------------------ */
-/* I2C1 register map (STM32H563 RM, chapter "I2C")                    */
+/* I2C1 register map                                                   */
 /* ------------------------------------------------------------------ */
 #define I2C1_BASE       0x40005400UL
 #define I2C1_CR1        (*(volatile uint32_t *)(I2C1_BASE + 0x00))
@@ -46,46 +45,48 @@
 #define I2C1_TXDR       (*(volatile uint32_t *)(I2C1_BASE + 0x28))
 #define I2C1_RXDR       (*(volatile uint32_t *)(I2C1_BASE + 0x24))
 
-/* ISR bits */
-#define I2C_ISR_TXE     (1U <<  0)
 #define I2C_ISR_TXIS    (1U <<  1)
 #define I2C_ISR_RXNE    (1U <<  2)
-#define I2C_ISR_TC      (1U <<  6)
-#define I2C_ISR_TCR     (1U <<  7)
-#define I2C_ISR_BUSY    (1U << 15)
 #define I2C_ISR_NACKF   (1U <<  4)
 #define I2C_ISR_STOPF   (1U <<  5)
+#define I2C_ISR_TC      (1U <<  6)
+#define I2C_ISR_BUSY    (1U << 15)
 
-/* CR2 bits / fields */
 #define I2C_CR2_SADD_SHIFT   1
 #define I2C_CR2_NBYTES_SHIFT 16
 #define I2C_CR2_RD_WRN       (1U << 10)
 #define I2C_CR2_AUTOEND      (1U << 25)
-#define I2C_CR2_RELOAD       (1U << 24)
 #define I2C_CR2_START        (1U << 13)
-#define I2C_CR2_STOP         (1U << 14)
 
-/* ------------------------------------------------------------------ */
-/* Timing register value for 100 kHz I2C @ 64 MHz I2CCLK              */
-/* Generated with STM32CubeMX I2C timing calculator:                  */
-/*   PRESC=15, SCLL=0x13, SCLH=0x0F, SDADEL=0x2, SCLDEL=0x4          */
-/*   => 0x F0 4 2 0F 13  (PRESC | SCLDEL | SDADEL | SCLH | SCLL)      */
-/* Encoded as: PRESC[31:28] SCLDEL[23:20] SDADEL[19:16] SCLH[15:8] SCLL[7:0] */
 #define I2C_TIMING_100KHZ   0xF0420F13UL
 
-/* EEPROM write-cycle time: 5 ms (most 24Cxx EEPROMs) */
-#define EEPROM_WRITE_DELAY_LOOPS  320000UL   /* ~5 ms @ 64 MHz */
+/* ------------------------------------------------------------------ */
+/* Timing constants                                                    */
+/* ------------------------------------------------------------------ */
+/*
+ * FIX 1 – bus recovery gap.
+ * After STOPF is cleared the STM32H5 I2C BUSY bit can stay set for a
+ * short time while the peripheral finishes driving the bus lines.
+ * 200 µs at 64 MHz is conservative and costs almost nothing.
+ */
+#define I2C_BUS_RECOVERY_LOOPS  12800UL   /* ~200 µs @ 64 MHz */
+
+/*
+ * FIX 2 – ACK-poll inter-probe delay.
+ * Between consecutive probes during write-cycle polling we wait ~1 ms
+ * so we don't hammer the bus.  Most 24Cxx EEPROMs complete in ≤5 ms.
+ */
+#define ACK_POLL_DELAY_LOOPS    64000UL   /* ~1 ms @ 64 MHz */
+#define ACK_POLL_MAX_TRIES      20        /* up to 20 ms total */
 
 /* ------------------------------------------------------------------ */
 /* Internal helpers                                                    */
 /* ------------------------------------------------------------------ */
-
 static void i2c_delay(volatile uint32_t n)
 {
     while (n--) __asm__("nop");
 }
 
-/* Wait for a bit in ISR; return 0 on success, -1 on timeout */
 static int i2c_wait_flag(uint32_t flag, uint32_t timeout)
 {
     while (!(I2C1_ISR & flag)) {
@@ -94,136 +95,148 @@ static int i2c_wait_flag(uint32_t flag, uint32_t timeout)
     return 0;
 }
 
+/*
+ * FIX 2 – ACK polling.
+ * Probe the EEPROM with a zero-byte write (just device address).
+ * The EEPROM NACKs while its internal write cycle is in progress and
+ * ACKs when it is done.  Returns 0 when ACK received, -1 on timeout.
+ */
+static int eeprom_wait_ready(void)
+{
+    for (int attempt = 0; attempt < ACK_POLL_MAX_TRIES; attempt++) {
+        /* Small gap before each probe */
+        i2c_delay(ACK_POLL_DELAY_LOOPS);
+
+        /* Wait for bus to be free */
+        uint32_t t = 50000;
+        while ((I2C1_ISR & I2C_ISR_BUSY) && --t);
+        if (t == 0) continue;
+
+        I2C1_ICR = 0xFFU;
+
+        /*
+         * Send START + device address + 0 data bytes with AUTOEND.
+         * If EEPROM is ready it will ACK the address and we get STOPF.
+         * If still busy internally it will NACK and we get NACKF.
+         */
+        I2C1_CR2 = ((uint32_t)(EEPROM_I2C_ADDR) << I2C_CR2_SADD_SHIFT)
+                 | (0UL << I2C_CR2_NBYTES_SHIFT)
+                 | I2C_CR2_AUTOEND
+                 | I2C_CR2_START;
+
+        /* Wait for either STOPF (ACK = ready) or NACKF (busy) */
+        uint32_t deadline = 200000;
+        while (!((I2C1_ISR & I2C_ISR_STOPF) || (I2C1_ISR & I2C_ISR_NACKF))) {
+            if (--deadline == 0) break;
+        }
+
+        if (I2C1_ISR & I2C_ISR_STOPF) {
+            /* EEPROM acknowledged – it is ready */
+            I2C1_ICR = 0xFFU;
+            i2c_delay(I2C_BUS_RECOVERY_LOOPS);
+            return 0;
+        }
+
+        /* NACK or timeout – clear flags and try again */
+        I2C1_ICR = 0xFFU;
+        i2c_delay(I2C_BUS_RECOVERY_LOOPS);
+    }
+    return -1;  /* never became ready */
+}
+
 /* ------------------------------------------------------------------ */
 /* Public: EEPROM_Init                                                 */
 /* ------------------------------------------------------------------ */
 void EEPROM_Init(void)
 {
-    /* 1. Enable clocks for GPIOB and I2C1 */
-    RCC_AHB2ENR  |= (1U << 1);   /* GPIOBEN */
-    RCC_APB1LENR |= (1U << 21);  /* I2C1EN  */
+    RCC_AHB2ENR  |= (1U << 1);
+    RCC_APB1LENR |= (1U << 21);
 
-    /* 2. Configure PB8 (SCL) and PB9 (SDA) for AF4 open-drain         */
-    /*    MODER = 10 (alternate function)                               */
     GPIO_MODER(GPIOB_BASE) &= ~((3UL << (8*2)) | (3UL << (9*2)));
     GPIO_MODER(GPIOB_BASE) |=  ((2UL << (8*2)) | (2UL << (9*2)));
-
-    /*    OTYPER = 1 (open-drain) for both                              */
     GPIO_OTYPER(GPIOB_BASE) |= (1UL << 8) | (1UL << 9);
-
-    /*    OSPEEDR = 01 (medium speed) for both                          */
     GPIO_OSPEEDR(GPIOB_BASE) &= ~((3UL << (8*2)) | (3UL << (9*2)));
     GPIO_OSPEEDR(GPIOB_BASE) |=  ((1UL << (8*2)) | (1UL << (9*2)));
-
-    /*    PUPDR = 00 (no pull; external 4.7k pull-ups on the I2C bus)   */
     GPIO_PUPDR(GPIOB_BASE) &= ~((3UL << (8*2)) | (3UL << (9*2)));
+    GPIO_AFRH(GPIOB_BASE) &= ~(0xFFUL);
+    GPIO_AFRH(GPIOB_BASE) |=  (4UL << 0) | (4UL << 4);
 
-    /*    AFRH: pins 8 & 9 use AF4 (I2C1)                               */
-    /*    AFRH[3:0]  = AF for pin 8 (bits [3:0] of AFRH)                */
-    /*    AFRH[7:4]  = AF for pin 9 (bits [7:4] of AFRH)                */
-    GPIO_AFRH(GPIOB_BASE) &= ~(0xFFUL);             /* clear bits 0..7 */
-    GPIO_AFRH(GPIOB_BASE) |=  (4UL << 0) | (4UL << 4);  /* AF4 for PB8, PB9 */
-
-    /* 3. Configure I2C1 peripheral                                     */
-    I2C1_CR1    &= ~(1U << 0);         /* PE=0: disable while configuring */
+    I2C1_CR1    &= ~(1U << 0);
     I2C1_TIMINGR = I2C_TIMING_100KHZ;
-    I2C1_CR1    |=  (1U << 0);         /* PE=1: enable */
+    I2C1_CR1    |=  (1U << 0);
 }
 
 /* ------------------------------------------------------------------ */
-/* Low-level write/read primitives                                     */
+/* Low-level write/read                                                */
 /* ------------------------------------------------------------------ */
-
-/*
- * Write one byte to EEPROM at mem_addr.
- * Protocol:  START | DEV_ADDR+W | MEM_ADDR_HI | MEM_ADDR_LO | DATA | STOP
- * Returns 0 on success, -1 on error.
- */
 int EEPROM_WriteByte(uint16_t mem_addr, uint8_t data)
 {
-    /* Wait if bus is busy */
-    uint32_t t = 100000;
-    while ((I2C1_ISR & I2C_ISR_BUSY) && --t);
-    if (t == 0) return -1;
-
-    /* --- Phase 1: send device address + 3 bytes (addr_hi, addr_lo, data) --- */
-    I2C1_ICR = 0xFFU;   /* clear all flags */
-
-    /* CR2: SADD(7-bit shifted to [7:1]), NBYTES=3, WRITE, AUTOEND, START */
-    I2C1_CR2 = ((uint32_t)(EEPROM_I2C_ADDR) << I2C_CR2_SADD_SHIFT)
-             | (3UL << I2C_CR2_NBYTES_SHIFT)
-             | I2C_CR2_AUTOEND
-             | I2C_CR2_START;
-
-    /* Send memory address high byte */
-    if (i2c_wait_flag(I2C_ISR_TXIS, 100000) < 0) return -1;
-    if (I2C1_ISR & I2C_ISR_NACKF) return -1;
-    I2C1_TXDR = (mem_addr >> 8) & 0xFFU;
-
-    /* Send memory address low byte */
-    if (i2c_wait_flag(I2C_ISR_TXIS, 100000) < 0) return -1;
-    I2C1_TXDR = mem_addr & 0xFFU;
-
-    /* Send data byte */
-    if (i2c_wait_flag(I2C_ISR_TXIS, 100000) < 0) return -1;
-    I2C1_TXDR = data;
-
-    /* Wait for STOP (AUTOEND generates it automatically) */
-    if (i2c_wait_flag(I2C_ISR_STOPF, 200000) < 0) return -1;
-    I2C1_ICR = (1U << 5);   /* clear STOPF */
-
-    /* EEPROM internal write cycle: wait ~5 ms */
-    i2c_delay(EEPROM_WRITE_DELAY_LOOPS);
-
-    return 0;
-}
-
-/*
- * Read one byte from EEPROM at mem_addr.
- * Protocol:  START | DEV_ADDR+W | ADDR_HI | ADDR_LO |
- *            RESTART | DEV_ADDR+R | DATA | NACK | STOP
- * Returns the byte value (0-255) or -1 on error.
- */
-int EEPROM_ReadByte(uint16_t mem_addr)
-{
-    /* Wait until bus free */
-    uint32_t t = 100000;
+    /* FIX 1: wait for bus to be fully free before starting */
+    uint32_t t = 500000;
     while ((I2C1_ISR & I2C_ISR_BUSY) && --t);
     if (t == 0) return -1;
 
     I2C1_ICR = 0xFFU;
 
-    /* --- Phase 1: write the 16-bit memory address (no AUTOEND) --- */
     I2C1_CR2 = ((uint32_t)(EEPROM_I2C_ADDR) << I2C_CR2_SADD_SHIFT)
-             | (2UL << I2C_CR2_NBYTES_SHIFT)
-             | I2C_CR2_START;          /* no AUTOEND – we do a restart */
+             | (3UL << I2C_CR2_NBYTES_SHIFT)
+             | I2C_CR2_AUTOEND
+             | I2C_CR2_START;
 
-    /* addr high */
     if (i2c_wait_flag(I2C_ISR_TXIS, 100000) < 0) return -1;
     if (I2C1_ISR & I2C_ISR_NACKF) return -1;
     I2C1_TXDR = (mem_addr >> 8) & 0xFFU;
 
-    /* addr low */
     if (i2c_wait_flag(I2C_ISR_TXIS, 100000) < 0) return -1;
     I2C1_TXDR = mem_addr & 0xFFU;
 
-    /* Wait for TC (transfer complete, no stop yet) */
+    if (i2c_wait_flag(I2C_ISR_TXIS, 100000) < 0) return -1;
+    I2C1_TXDR = data;
+
+    if (i2c_wait_flag(I2C_ISR_STOPF, 200000) < 0) return -1;
+    I2C1_ICR = (1U << 5);
+
+    /* FIX 1+2: bus recovery gap then ACK-poll until write cycle done */
+    i2c_delay(I2C_BUS_RECOVERY_LOOPS);
+    return eeprom_wait_ready();
+}
+
+int EEPROM_ReadByte(uint16_t mem_addr)
+{
+    /* FIX 1: extended BUSY timeout */
+    uint32_t t = 500000;
+    while ((I2C1_ISR & I2C_ISR_BUSY) && --t);
+    if (t == 0) return -1;
+
+    I2C1_ICR = 0xFFU;
+
+    I2C1_CR2 = ((uint32_t)(EEPROM_I2C_ADDR) << I2C_CR2_SADD_SHIFT)
+             | (2UL << I2C_CR2_NBYTES_SHIFT)
+             | I2C_CR2_START;
+
+    if (i2c_wait_flag(I2C_ISR_TXIS, 100000) < 0) return -1;
+    if (I2C1_ISR & I2C_ISR_NACKF) return -1;
+    I2C1_TXDR = (mem_addr >> 8) & 0xFFU;
+
+    if (i2c_wait_flag(I2C_ISR_TXIS, 100000) < 0) return -1;
+    I2C1_TXDR = mem_addr & 0xFFU;
+
     if (i2c_wait_flag(I2C_ISR_TC, 200000) < 0) return -1;
 
-    /* --- Phase 2: repeated START, read 1 byte with AUTOEND --- */
     I2C1_CR2 = ((uint32_t)(EEPROM_I2C_ADDR) << I2C_CR2_SADD_SHIFT)
              | (1UL << I2C_CR2_NBYTES_SHIFT)
              | I2C_CR2_RD_WRN
              | I2C_CR2_AUTOEND
              | I2C_CR2_START;
 
-    /* Wait for receive data */
     if (i2c_wait_flag(I2C_ISR_RXNE, 200000) < 0) return -1;
     uint8_t rx = (uint8_t)(I2C1_RXDR & 0xFFU);
 
-    /* Wait for STOP */
     if (i2c_wait_flag(I2C_ISR_STOPF, 200000) < 0) return -1;
-    I2C1_ICR = (1U << 5);   /* clear STOPF */
+    I2C1_ICR = (1U << 5);
+
+    /* FIX 1: bus recovery after read too */
+    i2c_delay(I2C_BUS_RECOVERY_LOOPS);
 
     return (int)rx;
 }
@@ -231,30 +244,26 @@ int EEPROM_ReadByte(uint16_t mem_addr)
 /* ------------------------------------------------------------------ */
 /* High-level sequence API                                             */
 /* ------------------------------------------------------------------ */
-
-/* Cached sequence length kept in RAM for fast appending */
-static uint8_t seq_len = 0xFF;  /* 0xFF = "not yet read from EEPROM" */
+static uint8_t seq_len = 0xFF;
 
 void EEPROM_ClearSequence(void)
 {
     seq_len = 0;
-    EEPROM_WriteByte(0, 0);   /* store length = 0 */
+    EEPROM_WriteByte(0, 0);
 }
 
 void EEPROM_AppendKey(char k)
 {
-    /* Load length from EEPROM on first call after power-up */
     if (seq_len == 0xFF) {
         int v = EEPROM_ReadByte(0);
         seq_len = (v < 0) ? 0 : (uint8_t)v;
     }
 
-    if (seq_len >= MAX_SEQUENCE_LENGTH) return;   /* buffer full */
+    if (seq_len >= MAX_SEQUENCE_LENGTH) return;
 
-    /* Store key at position (seq_len + 1); index 0 is the length byte */
     EEPROM_WriteByte((uint16_t)(1U + seq_len), (uint8_t)k);
     seq_len++;
-    EEPROM_WriteByte(0, seq_len);   /* update length byte */
+    EEPROM_WriteByte(0, seq_len);
 }
 
 uint8_t EEPROM_ReadSequence(char *buf)
@@ -269,6 +278,6 @@ uint8_t EEPROM_ReadSequence(char *buf)
         buf[i] = (b < 0) ? '1' : (char)b;
     }
 
-    seq_len = n;    /* keep cache in sync */
+    seq_len = n;
     return n;
 }

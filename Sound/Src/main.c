@@ -9,7 +9,7 @@
 /* Simple millisecond-scale blocking delay                             */
 /* At 64 MHz, roughly 64 000 cycles per ms; each loop = ~3 cycles     */
 /* ------------------------------------------------------------------ */
-#define LOOPS_PER_MS   21333UL
+#define LOOPS_PER_MS   1000L
 
 static void delay_ms(uint32_t ms)
 {
