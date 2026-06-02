@@ -1,3 +1,25 @@
+/*
+ * main.c  –  Tone player / recorder  (Part 2)
+ *
+ * Modes (one LED lit at a time):
+ *   Play Mode     PA6 LED  – press '*'
+ *   Record Mode   PC0 LED  – press '0'  (clears EEPROM, then records)
+ *   Playback Mode PC3 LED  – press '#'
+ *
+ * Play / Record:  keys 1-8 play tones.
+ *                 In Record Mode each NEW press is saved to EEPROM.
+ *                 The tone plays for as long as the key is held.
+ *
+ * Playback:       press '9' to replay the stored sequence.
+ *                 Each note plays for 1 second.
+ *
+ * Hardware:
+ *   Speaker  PA0   TIM2_CH1 PWM
+ *   LEDs     PA6, PC0, PC3
+ *   Keypad   PB7/6, PG14, PE13 (rows)   PE14/11/9, PG12 (cols)
+ *   EEPROM   PB8=SCL  PB9=SDA  (I2C1, 100 kHz)
+ */
+
 #include "keypad.h"
 #include "pwm_tone.h"
 #include "tones.h"
@@ -6,10 +28,10 @@
 #include <stdint.h>
 
 /* ------------------------------------------------------------------ */
-/* Simple millisecond-scale blocking delay                             */
-/* At 64 MHz, roughly 64 000 cycles per ms; each loop = ~3 cycles     */
+/* Blocking delay                                                      */
+/* 64 MHz / ~3 cycles per loop / 1000 ms                              */
 /* ------------------------------------------------------------------ */
-#define LOOPS_PER_MS   21333UL
+#define LOOPS_PER_MS  21333UL
 
 static void delay_ms(uint32_t ms)
 {
@@ -18,8 +40,23 @@ static void delay_ms(uint32_t ms)
 }
 
 /* ------------------------------------------------------------------ */
-/* Playback: play recorded sequence from EEPROM                        */
-/* Each note is played for 1 second regardless of original duration.  */
+/* Wait until no key is pressed (debounced release)                   */
+/* ------------------------------------------------------------------ */
+static void wait_key_release(void)
+{
+    /* Keep polling until we see no key for two consecutive reads     */
+    int stable = 0;
+    while (stable < 2) {
+        if (keypad_get_current_key() == 0)
+            stable++;
+        else
+            stable = 0;
+        delay_ms(10);
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* Playback helper                                                     */
 /* ------------------------------------------------------------------ */
 static void play_sequence(void)
 {
@@ -33,7 +70,7 @@ static void play_sequence(void)
         }
         delay_ms(1000);
         PWM_Tone_Stop();
-        delay_ms(50);   /* brief gap between notes */
+        delay_ms(50);       /* brief silent gap between notes */
     }
 }
 
@@ -42,11 +79,10 @@ static void play_sequence(void)
 /* ------------------------------------------------------------------ */
 int main(void)
 {
-    keypad_init();          /* configures keypad GPIO + mode LEDs */
-    PWM_Tone_Init();        /* configures TIM2 + PA0 */
-    EEPROM_Init();          /* configures I2C1 + PB8/PB9 */
+    keypad_init();
+    PWM_Tone_Init();
+    EEPROM_Init();
 
-    /* Start in Play Mode */
     ModeLEDs_Set(MODE_PLAY);
 
     char last_key = 0;
@@ -57,10 +93,9 @@ int main(void)
         SystemMode mode = ModeLEDs_GetMode();
 
         /* ---------------------------------------------------------- */
-        /* Mode-switch keys ('*', '0', '#')                           */
+        /* Mode-switch keys: act on the leading edge only             */
         /* ---------------------------------------------------------- */
         if (key == '*' && key != last_key) {
-            /* Enter Play Mode */
             PWM_Tone_Stop();
             ModeLEDs_Set(MODE_PLAY);
             last_key = key;
@@ -68,7 +103,6 @@ int main(void)
         }
 
         if (key == '0' && key != last_key) {
-            /* Enter Record Mode – always clears previous recording */
             PWM_Tone_Stop();
             EEPROM_ClearSequence();
             ModeLEDs_Set(MODE_RECORD);
@@ -77,7 +111,6 @@ int main(void)
         }
 
         if (key == '#' && key != last_key) {
-            /* Enter Playback Mode */
             PWM_Tone_Stop();
             ModeLEDs_Set(MODE_PLAYBACK);
             last_key = key;
@@ -85,7 +118,7 @@ int main(void)
         }
 
         /* ---------------------------------------------------------- */
-        /* Playback Mode: '9' triggers replay                         */
+        /* Playback mode: '9' triggers replay                         */
         /* ---------------------------------------------------------- */
         if (mode == MODE_PLAYBACK) {
             if (key == '9' && key != last_key) {
@@ -96,29 +129,44 @@ int main(void)
         }
 
         /* ---------------------------------------------------------- */
-        /* Play / Record modes: keys '1'–'8' play tones               */
+        /* Play / Record modes: keys '1'–'8'                          */
         /* ---------------------------------------------------------- */
         uint32_t freq = Tone_Frequency_From_Key(key);
 
         if (freq != 0) {
-            /* A tone key is pressed */
             if (key != last_key) {
+                /* New key press detected */
                 PWM_Tone_Play(freq);
 
-                /* In Record Mode, append this key to the sequence */
                 if (mode == MODE_RECORD) {
+                    /*
+                     * Save this key to EEPROM.
+                     * EEPROM_AppendKey takes ~10 ms (two I2C writes +
+                     * write-cycle delays).  We keep the tone playing
+                     * the whole time so it still sounds responsive.
+                     * After saving, wait for the key to be physically
+                     * released before we will record another press –
+                     * this prevents a single long hold from recording
+                     * the same key multiple times and also prevents
+                     * the EEPROM write delay from blocking the next
+                     * key detection.
+                     */
                     EEPROM_AppendKey(key);
+                    wait_key_release();
+                    PWM_Tone_Stop();
+                    last_key = 0;   /* reset so next press is fresh */
+                    continue;
                 }
 
                 last_key = key;
             }
-            /* If same key held, tone keeps playing – do nothing */
+            /* Same key still held in Play mode: keep tone playing */
         } else {
             /* No tone key pressed */
             if (last_key != 0) {
                 PWM_Tone_Stop();
             }
-            last_key = key;   /* may be 0 or a non-tone key like 'A' */
+            last_key = key;
         }
     }
 }
