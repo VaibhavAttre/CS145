@@ -24,7 +24,8 @@ void BREATHING_LED_Init(void)
 void BREATHING_LED_Update(uint32_t adc_value)
 {
     uint32_t arr = PWM_GetARR();
-
+    duty = arr;
+/*
 
     uint32_t range = MAX_DELAY - MIN_DELAY;
     delay = MAX_DELAY - ((adc_value * range) / ADC_MAX);
@@ -54,7 +55,7 @@ void BREATHING_LED_Update(uint32_t adc_value)
         {
             duty--;
         }
-    }
+    }*/
 
     PWM_SetDuty(duty);
 }

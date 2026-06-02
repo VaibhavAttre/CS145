@@ -24,7 +24,7 @@ int main(void)
     {
 
     	//READ POTENTOIMETER/ADC VALUE
-        BREATHING_LED_Update(ADC_Read());
+        BREATHING_LED_Update(200000U);
 
         delay_ms(1);
     }
