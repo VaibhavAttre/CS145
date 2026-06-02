@@ -1,3 +1,10 @@
+/*
+ * tones.c
+ *
+ * Maps keypad keys '1'–'8' to standard musical note frequencies (Hz).
+ * All other keys return 0.
+ */
+
 #include "tones.h"
 
 uint32_t Tone_Frequency_From_Key(char key)
