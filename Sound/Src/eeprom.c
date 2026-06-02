@@ -237,8 +237,8 @@ static uint8_t seq_len = 0xFF;  /* 0xFF = "not yet read from EEPROM" */
 
 void EEPROM_ClearSequence(void)
 {
-    EEPROM_WriteByte(0, 0);   /* store length = 0 */
     seq_len = 0;
+    EEPROM_WriteByte(0, 0);   /* store length = 0 */
 }
 
 void EEPROM_AppendKey(char k)
