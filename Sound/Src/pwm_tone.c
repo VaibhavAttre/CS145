@@ -106,4 +106,5 @@ void PWM_Tone_Play(uint32_t frequency_hz)
 void PWM_Tone_Stop(void)
 {
     TIM2_CCR1 = 0U;
+    TIM2_EGR |= (1U << 0);
 }
