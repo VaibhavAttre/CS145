@@ -44,14 +44,11 @@ int main(void)
 {
     keypad_init();          /* configures keypad GPIO + mode LEDs */
     PWM_Tone_Init();        /* configures TIM2 + PA0 */
-    EEPROM_Init();
-    int v = EEPROM_ReadByte(0);
-    if (v < 0 || (uint8_t)v > MAX_SEQUENCE_LENGTH) {
-        EEPROM_ClearSequence();  // only initialize if garbage
-    }          /* configures I2C1 + PB8/PB9 */
+    EEPROM_Init();      /* configures I2C1 + PB8/PB9 */
     int v = EEPROM_ReadByte(0);
     if (v < 0 || (uint8_t)v > MAX_SEQUENCE_LENGTH) {
         EEPROM_ClearSequence();
+    }
     /* Start in Play Mode */
     ModeLEDs_Set(MODE_PLAY);
 
