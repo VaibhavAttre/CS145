@@ -4,6 +4,7 @@
 
 int main(void)
 {
+
     lcd_init();
     keypad_init();
     lcd_clear();

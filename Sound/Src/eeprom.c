@@ -142,11 +142,9 @@ void EEPROM_Init(void)
 int EEPROM_WriteByte(uint16_t mem_addr, uint8_t data)
 {
     /* Wait if bus is busy */
-    if (i2c_wait_flag(0, 100000) == 0) { /* invert: wait until NOT busy */
-        uint32_t t = 100000;
-        while ((I2C1_ISR & I2C_ISR_BUSY) && --t);
-        if (t == 0) return -1;
-    }
+    uint32_t t = 100000;
+    while ((I2C1_ISR & I2C_ISR_BUSY) && --t);
+    if (t == 0) return -1;
 
     /* --- Phase 1: send device address + 3 bytes (addr_hi, addr_lo, data) --- */
     I2C1_ICR = 0xFFU;   /* clear all flags */

@@ -2,7 +2,7 @@
  * adc_driver.c
  *
  *  Created on: May 25, 2026
- *      Author: vaibh
+ *      Author: Aaron
  */
 
 #ifndef ADC_DRIVER_H
