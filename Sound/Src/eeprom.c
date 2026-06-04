@@ -149,21 +149,37 @@ static int eeprom_wait_ready(void)
 /* ------------------------------------------------------------------ */
 void EEPROM_Init(void)
 {
+	//Enable clocks
     RCC_AHB2ENR  |= (1U << 1);
     RCC_APB1LENR |= (1U << 21);
 
-    GPIO_MODER(GPIOB_BASE) &= ~((3UL << (8*2)) | (3UL << (9*2)));
-    GPIO_MODER(GPIOB_BASE) |=  ((2UL << (8*2)) | (2UL << (9*2)));
-    GPIO_OTYPER(GPIOB_BASE) |= (1UL << 8) | (1UL << 9);
-    GPIO_OSPEEDR(GPIOB_BASE) &= ~((3UL << (8*2)) | (3UL << (9*2)));
-    GPIO_OSPEEDR(GPIOB_BASE) |=  ((1UL << (8*2)) | (1UL << (9*2)));
-    GPIO_PUPDR(GPIOB_BASE) &= ~((3UL << (8*2)) | (3UL << (9*2)));
-    GPIO_AFRH(GPIOB_BASE) &= ~(0xFFUL);
-    GPIO_AFRH(GPIOB_BASE) |=  (4UL << 0) | (4UL << 4);
+    GPIO_MODER(GPIOB_BASE) &= ~((3UL << (8*2)) | (3UL << (9*2))); //Sets it to Alternate function mode
+    GPIO_MODER(GPIOB_BASE) |=  ((2UL << (8*2)) | (2UL << (9*2))); //Sets to alternate function mode
 
+    GPIO_OTYPER(GPIOB_BASE) |= (1UL << 8) | (1UL << 9); //open - drain. the master and slave can either pull line low or let go
+
+    GPIO_OSPEEDR(GPIOB_BASE) &= ~((3UL << (8*2)) | (3UL << (9*2))); //speed
+    GPIO_OSPEEDR(GPIOB_BASE) |=  ((1UL << (8*2)) | (1UL << (9*2)));
+
+    GPIO_PUPDR(GPIOB_BASE) &= ~((3UL << (8*2)) | (3UL << (9*2))); //clear internal pull ups and pull downs
+
+    GPIO_AFRH(GPIOB_BASE) &= ~(0xFFUL); //PB8 -> I2C1_SCL
+    GPIO_AFRH(GPIOB_BASE) |=  (4UL << 0) | (4UL << 4); //PB9 -> I2C1_SDA
+
+    //Configure
     I2C1_CR1    &= ~(1U << 0);
-    I2C1_TIMINGR = I2C_TIMING_100KHZ;
-    I2C1_CR1    |=  (1U << 0);
+    I2C1_TIMINGR = I2C_TIMING_100KHZ; //Prescaler, SCLDEL, SDADEL, SCLH, SCLL
+    I2C1_CR1    |=  (1U << 0); //turns i2c on
+
+    /*
+     *
+     * Ovearll, GPIOB clock enabled
+     * I2C1 clock enabled
+     * PB8 and PB9 assigned to I2c
+     * PB8/9 are open drain
+     * I2c1 timing set for 100 khz
+     * I2C1 enabled
+     */
 }
 
 /* ------------------------------------------------------------------ */
@@ -254,9 +270,9 @@ void EEPROM_ClearSequence(void)
 
 void EEPROM_AppendKey(char k)
 {
-    if (seq_len == 0xFF) {
+    if (seq_len == 0xFF) { //dont know length yet
         int v = EEPROM_ReadByte(0);
-        seq_len = (v < 0) ? 0 : (uint8_t)v;
+        seq_len = (v < 0) ? 0 : (uint8_t)v; //if not known, read it from addr 0
     }
 
     if (seq_len >= MAX_SEQUENCE_LENGTH) return;
